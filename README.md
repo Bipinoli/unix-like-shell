@@ -1,6 +1,7 @@
-# unix-like-shell
+# bsh: a unix like shell
 
-- [ ] Shell prompt input and parsing
+- [X] Shell prompt input and parsing
+- [X] Built in `cd` & `pwd`
 - [ ] Spawning processes & waiting for execution
 - [ ] Exiting shell
 - [ ] Handling `Ctrl + C` to kill a process

@@ -1,0 +1,4 @@
+*.dSYM
+*.o
+*.obj
+bsh
