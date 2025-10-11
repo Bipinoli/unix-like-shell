@@ -7,6 +7,9 @@
 
 #include "parser.hpp"
 #include "myfilesystem.hpp"
+#include "process.hpp"
+
+#include <unistd.h>
 
 using namespace std;
 
@@ -40,6 +43,7 @@ private:
   vector<string> command;
 
   void init() {
+    process::init();
     myfilesystem::cd_to_home();
     cwd = myfilesystem::get_cwd();
     init_handlers();  
@@ -62,6 +66,14 @@ private:
       myfilesystem::cd(path);
       cwd = myfilesystem::get_cwd();
     };
+    registry["test"] = [&]() {
+      cout << "launching sleep" << endl;
+      vector<string> command { "sleep", "30"};
+      process::spawn("/bin/sleep", command);
+    };
+    registry["fg"] = [&]() {
+      process::bring2fg();
+    };
   }
   
 };
@@ -70,6 +82,12 @@ private:
 int main() {
   Shell shell;
   shell.run();
+
+  // process::init();
+  // while (true) {
+  //   cout << "pausing" << endl;
+  //   pause();
+  // }
 
   return 0;
 }

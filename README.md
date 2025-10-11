@@ -1,9 +1,10 @@
-# bsh: a unix like shell
+# A Unix like shell
 
 - [X] Shell prompt input and parsing
+- [X] Exiting shell
 - [X] Built in `cd` & `pwd`
+- [ ] Can run any programs in `/bin`
 - [ ] Spawning processes & waiting for execution
-- [ ] Exiting shell
 - [ ] Handling `Ctrl + C` to kill a process
 - [ ] `Ctrl + Z` and `&` to run in the background 
 - [ ] `fg` to bring to foreground

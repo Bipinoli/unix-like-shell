@@ -1,3 +1,3 @@
 #!/bin/sh
 
-clang++ -std=c++17 -g -O0 -Wall bsh.cpp -o bsh && ./bsh
+clang++ -std=c++17 -g -O0 -Wall main.cpp -o shell && ./shell

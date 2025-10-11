@@ -1,4 +1,4 @@
 *.dSYM
 *.o
 *.obj
-bsh
+shell
