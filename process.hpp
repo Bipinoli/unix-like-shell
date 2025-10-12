@@ -12,18 +12,21 @@ namespace process {
     void set_process_grp_to_fg(pid_t pid) {
       // Note:
       // `tcsetpgrp` can be called by any process in the terminal session
-      // However, within the terminal session there are foreground and bacckground proccess
-      // The `tcsetpgrp` can be called by the foreground proccess to set other process group into foreground
-      // Taking itself into background
-      // However, if the process is in background within the same terminal session
-      // it can still call `tcsetpgrp` and bring itself into foreground if the `SIGTTOU` signal is ingored within
+      // However, within the terminal session there are foreground and bacckground proccess.
+      // The `tcsetpgrp` can be called by the foreground proccess to set 
+      // other process group into foreground taking itself into background.
+      // However, if the process is in background within the same terminal session,
+      // it can still call `tcsetpgrp` and bring itself into foreground 
+      // if the `SIGTTOU` signal is ingored within.
       //
-      // Therefore this function must only be called from the parent process
-      // To put child into foreground & later bring itself back into 
-      // foreground again to successfully get access to STDIN
+      // Therefore this function must only be called from the parent process.
+      // It is the job of the parent (shell process) to manage this.
+      // The child process will be transformed to other process via `execve`,
+      // so there is no easy way to mange this from child process.
       //
-      // Also note that it is not necessary to set all STDIN, STDOUT, STDERR file descriptor to the process group to make foregound
-      // Doing any one is enough
+      // Also note that it is not necessary to set all STDIN, STDOUT, STDERR 
+      // file descriptor to the process group to make foregound.
+      // Doing any one suchh as STDIN is enough.
       if (tcsetpgrp(STDIN_FILENO, pid) == -1) {
         cerr << "CRASH! tcsetpgrp() failed to assign process group to foreground. Error: " << errno << endl;
         exit(1);
@@ -63,8 +66,8 @@ namespace process {
         exit(1);
       }
     } else {
-      // in MacOS the SIGTSTP (CTRL + Z) signal is sent to the entire process group
-      // to avoid other processes including the parent receiving the signal
+      // In MacOS the SIGTSTP (CTRL + Z) signal is sent to the entire process group.
+      // To avoid other processes including the parent receiving the signal
       // we should isolate the child process by making it its own process group leader
       setpgid(child_pid, child_pid); // see `man 2 setpgid`
       // And the child process group should be brought to the foreground
