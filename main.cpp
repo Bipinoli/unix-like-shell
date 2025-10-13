@@ -29,11 +29,21 @@ public:
       if (command.empty()) {
         continue;
       }
-      if (registry.find(command.front()) == registry.end()) {
-        cout << "unknown command: " << command.front() << endl;
+      if (registry.find(command.front()) != registry.end()) {
+        registry[command.front()]();
         continue;
       }
-      registry[command.front()]();
+      auto exec_file = myfilesystem::locate_executable_file_in_path(command.front());
+      if (exec_file.has_value()) {
+        if (command.back() == "&") {
+          command.pop_back();
+          process::spawn_in_bg(exec_file.value(), command);
+        } else {
+          process::spawn(exec_file.value(), command);
+        }
+      } else {
+        cout << "unknown command: " << command.front() << endl;
+      }
     }
   }
 
@@ -71,6 +81,11 @@ private:
       vector<string> command { "sleep", "30"};
       process::spawn("/bin/sleep", command);
     };
+    registry["test2"] = [&]() {
+      cout << "launching sleep in bg" << endl;
+      vector<string> command { "sleep", "10"};
+      process::spawn_in_bg("/bin/sleep", command);
+    };
     registry["fg"] = [&]() {
       process::bring2fg();
     };
@@ -82,12 +97,5 @@ private:
 int main() {
   Shell shell;
   shell.run();
-
-  // process::init();
-  // while (true) {
-  //   cout << "pausing" << endl;
-  //   pause();
-  // }
-
   return 0;
 }

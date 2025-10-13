@@ -32,25 +32,8 @@ namespace process {
         exit(1);
       }
     }
-  }
 
-  void init() {
-    // ignore CTRL + C, CTRL + Z
-    signal(SIGINT, SIG_IGN);
-    signal(SIGTSTP, SIG_IGN);
-    // ingore bacgkround process (spawned child) trying to acccess stdin, stdout to write to terminal
-    // Also important to be able to set itself back to foreground in the terminal session
-    signal(SIGTTOU, SIG_IGN);
-    signal(SIGTTIN, SIG_IGN);
-  }
-
-  void spawn(const string& path, vector<string>& command) {
-    auto child_pid = fork();
-    if (child_pid == -1) {
-      cerr << "CRASH! fork() failed" << endl;
-      exit(1);
-    }
-    if (child_pid == 0) {
+    void execve_child_process(const string& path, const vector<string>& command) {
       // SIG_IGN handlers are inherited in children
       // So set to default
       signal(SIGINT, SIG_DFL);
@@ -65,6 +48,27 @@ namespace process {
         cerr << "CRASH! failed to spawn the process" << endl;
         exit(1);
       }
+    }
+  }
+
+  void init() {
+    // ignore CTRL + C, CTRL + Z
+    signal(SIGINT, SIG_IGN);
+    signal(SIGTSTP, SIG_IGN);
+    // ingore bacgkround process (spawned child) trying to acccess stdin, stdout to write to terminal
+    // Also important to be able to set itself back to foreground in the terminal session
+    signal(SIGTTOU, SIG_IGN);
+    signal(SIGTTIN, SIG_IGN);
+  }
+
+  void spawn(const string& path, const vector<string>& command) {
+    auto child_pid = fork();
+    if (child_pid == -1) {
+      cerr << "CRASH! fork() failed" << endl;
+      exit(1);
+    }
+    if (child_pid == 0) {
+      __internal::execve_child_process(path, command);
     } else {
       // In MacOS the SIGTSTP (CTRL + Z) signal is sent to the entire process group.
       // To avoid other processes including the parent receiving the signal
@@ -90,6 +94,21 @@ namespace process {
           __internal::set_process_grp_to_fg(getpgrp());
           __internal::bg_job = 0;
       }
+    }
+  }
+
+  void spawn_in_bg(const string& path, vector<string>& command) {
+    auto child_pid = fork();
+    if (child_pid == -1) {
+      cerr << "CRASH! fork() failed" << endl;
+      exit(1);
+    }
+    if (child_pid == 0) {
+      __internal::execve_child_process(path, command);
+    } else {
+      setpgid(child_pid, child_pid);
+      __internal::bg_job = child_pid;
+      cout << "Process launched in the background. Bring to foreground with `fg`" << endl;
     }
   }
 
