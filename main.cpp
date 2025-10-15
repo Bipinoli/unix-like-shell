@@ -9,9 +9,16 @@
 #include "myfilesystem.hpp"
 #include "process.hpp"
 
-#include <unistd.h>
-
 using namespace std;
+
+namespace job {
+  void display(parser::Job& job) {
+    if (job.in_bg) {
+      cout << "To be run in the background" << endl;
+    }
+    // const parser::Command* cur = &job.cmd;
+  }
+}
 
 
 class Shell {
@@ -21,29 +28,34 @@ public:
   }
 
   void run() {
+    parser::Parser prsr;
     string prompt; 
     while (1) {
       cout << "[" << cwd << "]$ ";
       getline(cin, prompt);
-      command = parser::parse(prompt);
-      if (command.empty()) {
+      auto parse_result = prsr.parse(prompt);
+      if (parse_result.has_error) {
+        cout << parse_result.error_msg << endl;
         continue;
       }
-      if (registry.find(command.front()) != registry.end()) {
-        registry[command.front()]();
-        continue;
+      if (parse_result.job.has_value()) {
+        job::display(parse_result.job.value());
       }
-      auto exec_file = myfilesystem::locate_executable_file_in_path(command.front());
-      if (exec_file.has_value()) {
-        if (command.back() == "&") {
-          command.pop_back();
-          process::spawn_in_bg(exec_file.value(), command);
-        } else {
-          process::spawn(exec_file.value(), command);
-        }
-      } else {
-        cout << "unknown command: " << command.front() << endl;
-      }
+      // if (registry.find(command.front()) != registry.end()) {
+      //   registry[command.front()]();
+      //   continue;
+      // }
+      // auto exec_file = myfilesystem::locate_executable_file_in_path(command.front());
+      // if (exec_file.has_value()) {
+      //   if (command.back() == "&") {
+      //     command.pop_back();
+      //     process::spawn_in_bg(exec_file.value(), command);
+      //   } else {
+      //     process::spawn(exec_file.value(), command);
+      //   }
+      // } else {
+      //   cout << "unknown command: " << command.front() << endl;
+      // }
     }
   }
 
