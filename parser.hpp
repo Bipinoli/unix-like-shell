@@ -5,9 +5,10 @@
 #include <sstream>
 #include <cctype>
 #include <vector>
-#include <optional>
 #include <algorithm>
-#include <memory>
+#include <optional>
+#include <cassert>
+#include <unordered_set>
 
 namespace parser {
   using namespace std;
@@ -15,18 +16,17 @@ namespace parser {
   struct Command {
      vector<string> cmd;
      bool out_redirect_to_file;
-     unique_ptr<parser::Command> out_redirect;
+     bool out_redirect_to_process;
    };
 
   struct Job {
-    parser::Command cmd;
+    vector<Command> cmds;
     bool in_bg;
   };
 
   struct ParseResult {
-    optional<parser::Job> job;
-    bool has_error;
-    string error_msg;
+    optional<Job> job;
+    optional<string> error_msg;
   };
 
 
@@ -35,7 +35,7 @@ namespace parser {
       ParseResult parse(string& s) {
         vector<string> tokens = tokenizer(s);
         if (tokens.empty()) {
-          return {nullopt, false, ""};
+          return {nullopt, nullopt};
         }
         bool job_in_bg = false;
         if (tokens.back() == "&") {
@@ -44,32 +44,45 @@ namespace parser {
         } 
         auto [is_valid, err_msg] = verify_tokens(tokens);
         if (!is_valid) {
-          return {nullopt, true, err_msg};
+          return {nullopt, err_msg};
         }
         Job job = {
-          make_unique<Command>(),
+          vector<Command> {
+            Command {
+              vector<string> {},
+              false, false
+            }
+          },
           job_in_bg
         };
-        job.cmd.out_redirect_to_file = false;
-        consume_tokens(job.cmd.get(), tokens, 0);
-        return {job, false, ""};
+        consume_tokens(job.cmds, tokens, 0);
+        return {job, nullopt};
       }
 
     private:
-      void consume_tokens(Command& cmd, vector<string>& tokens, int tok_indx) {
+      void consume_tokens(vector<Command>& cmds, vector<string>& tokens, int tok_indx) {
+        assert(cmds.size() > 0);
         while (tok_indx < tokens.size()) {
           const string token = tokens[tok_indx];
           if (token[0] == '|') {
-            cmd.out_redirect = make_unique<Command>();
-            cmd.out_redirect_to_file = false;
-            return consume_tokens(cmd.out_redirect.get(), tokens, tok_indx + 1);
+            cmds.back().out_redirect_to_process = true;
+            cmds.back().out_redirect_to_file = false;
+            cmds.push_back(Command {
+              vector<string>{},
+              false, false
+            });
+            return consume_tokens(cmds, tokens, tok_indx + 1);
           }
           if (token[0] == '>') {
-            cmd.out_redirect = make_unique<Command>();
-            cmd.out_redirect_to_file = true;
-            return consume_tokens(cmd.out_redirect.get(), tokens, tok_indx + 1);
+            cmds.back().out_redirect_to_process = false;
+            cmds.back().out_redirect_to_file = true;
+            cmds.push_back(Command {
+              vector<string>{},
+              false, false
+            });
+            return consume_tokens(cmds, tokens, tok_indx + 1);
           }
-          cmd.cmd.push_back(token);
+          cmds.back().cmd.push_back(token);
           tok_indx += 1;
         }
       }
@@ -77,12 +90,13 @@ namespace parser {
       pair<bool, string> verify_tokens(vector<string>& tokens) {
         // Invalid in following cases:
         // - starting with non alphabetic chars for commands
-        // - subsequenct modifier tokens like '|', '>'
+        // - subsequenct occurance of modifier tokens like '|', '>'
+        unordered_set<char> valid_starts = unordered_set<char> {'\'', '"', '.'};
         bool modifier_expected_next = false;
         for (int i = 0; i<tokens.size(); i++) {
           auto tok = tokens[i];
           unsigned char first_c = static_cast<unsigned char>(tok[0]);
-          if (!modifier_expected_next && !isalpha(first_c)) {
+          if (!modifier_expected_next && !isalpha(first_c) && valid_starts.find(first_c) == valid_starts.end()) {
             return {false, "illegal: " + tok};
           }
           if (modifier_expected_next && (tok.length() > 1  || (first_c != '|' && first_c != '>'))) {
@@ -95,7 +109,7 @@ namespace parser {
           if (i < tokens.size() - 1) {
             auto next_token = tokens[i+1];
             auto next_f_c = static_cast<unsigned char>(next_token[0]);
-            if (!isalpha(next_f_c)) {
+            if (!isalpha(next_f_c) && valid_starts.find(next_f_c) == valid_starts.end()) {
               modifier_expected_next = true;
             }
           }
@@ -104,7 +118,6 @@ namespace parser {
       }
 
       vector<string> tokenizer(string& s) {
-        lowercase(s);
         vector<string> ans;
         istringstream stream(s);
         string buf;
@@ -112,10 +125,6 @@ namespace parser {
           ans.push_back(buf);
         }
         return ans;
-      }
-
-      void lowercase(string &s) {
-        transform(s.begin(), s.end(), s.begin(), [&](auto c) { return tolower(c); });
       }
   };
 }

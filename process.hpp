@@ -53,7 +53,7 @@ namespace process {
 
   void init() {
     // ignore CTRL + C, CTRL + Z
-    signal(SIGINT, SIG_IGN);
+    // signal(SIGINT, SIG_IGN);
     signal(SIGTSTP, SIG_IGN);
     // ingore bacgkround process (spawned child) trying to acccess stdin, stdout to write to terminal
     // Also important to be able to set itself back to foreground in the terminal session

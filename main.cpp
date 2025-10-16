@@ -16,7 +16,20 @@ namespace job {
     if (job.in_bg) {
       cout << "To be run in the background" << endl;
     }
-    // const parser::Command* cur = &job.cmd;
+    for (auto cmd: job.cmds) {
+      cout << "______________________________________" << endl;
+      for (auto c: cmd.cmd) {
+        cout << c << " ";
+      }
+      cout << endl;
+      cout << "Redirect output to file: " << cmd.out_redirect_to_file << endl;
+      cout << "Redirect output to process: " << cmd.out_redirect_to_process << endl;
+    }
+    cout << "______________________________________" << endl;
+  }
+
+  void run(parser::Job& job) {
+
   }
 }
 
@@ -34,8 +47,8 @@ public:
       cout << "[" << cwd << "]$ ";
       getline(cin, prompt);
       auto parse_result = prsr.parse(prompt);
-      if (parse_result.has_error) {
-        cout << parse_result.error_msg << endl;
+      if (parse_result.error_msg.has_value()) {
+        cout << parse_result.error_msg.value() << endl;
         continue;
       }
       if (parse_result.job.has_value()) {
