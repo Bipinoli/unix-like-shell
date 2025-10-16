@@ -10,121 +10,120 @@
 #include <cassert>
 #include <unordered_set>
 
-namespace parser {
-  using namespace std;
+using namespace std;
 
-  struct Command {
-     vector<string> cmd;
-     bool out_redirect_to_file;
-     bool out_redirect_to_process;
-   };
-
-  struct Job {
-    vector<Command> cmds;
-    bool in_bg;
+struct Command {
+    vector<string> cmd;
+    bool out_redirect_to_file;
+    bool out_redirect_to_process;
+    bool in_redirect_from_process;
   };
 
-  struct ParseResult {
-    optional<Job> job;
-    optional<string> error_msg;
-  };
+struct Job {
+  vector<Command> cmds;
+  bool in_bg;
+};
+
+struct ParseResult {
+  optional<Job> job;
+  optional<string> error_msg;
+};
 
 
-  class Parser {
-    public:
-      ParseResult parse(string& s) {
-        vector<string> tokens = tokenizer(s);
-        if (tokens.empty()) {
-          return {nullopt, nullopt};
-        }
-        bool job_in_bg = false;
-        if (tokens.back() == "&") {
-          tokens.pop_back();
-          job_in_bg = true;
-        } 
-        auto [is_valid, err_msg] = verify_tokens(tokens);
-        if (!is_valid) {
-          return {nullopt, err_msg};
-        }
-        Job job = {
-          vector<Command> {
-            Command {
-              vector<string> {},
-              false, false
-            }
-          },
-          job_in_bg
-        };
-        consume_tokens(job.cmds, tokens, 0);
-        return {job, nullopt};
+class Parser {
+  public:
+    ParseResult parse(string& s) {
+      vector<string> tokens = tokenizer(s);
+      if (tokens.empty()) {
+        return {nullopt, nullopt};
       }
+      bool job_in_bg = false;
+      if (tokens.back() == "&") {
+        tokens.pop_back();
+        job_in_bg = true;
+      } 
+      auto [is_valid, err_msg] = verify_tokens(tokens);
+      if (!is_valid) {
+        return {nullopt, err_msg};
+      }
+      Job job = {
+        vector<Command> {
+          Command {
+            vector<string> {},
+            false, false, false
+          }
+        },
+        job_in_bg
+      };
+      consume_tokens(job.cmds, tokens, 0);
+      return {job, nullopt};
+    }
 
-    private:
-      void consume_tokens(vector<Command>& cmds, vector<string>& tokens, int tok_indx) {
-        assert(cmds.size() > 0);
-        while (tok_indx < tokens.size()) {
-          const string token = tokens[tok_indx];
-          if (token[0] == '|') {
-            cmds.back().out_redirect_to_process = true;
-            cmds.back().out_redirect_to_file = false;
-            cmds.push_back(Command {
-              vector<string>{},
-              false, false
-            });
-            return consume_tokens(cmds, tokens, tok_indx + 1);
+  private:
+    void consume_tokens(vector<Command>& cmds, vector<string>& tokens, int tok_indx) {
+      assert(cmds.size() > 0);
+      while (tok_indx < tokens.size()) {
+        const string token = tokens[tok_indx];
+        if (token[0] == '|') {
+          cmds.back().out_redirect_to_process = true;
+          cmds.back().out_redirect_to_file = false;
+          cmds.push_back(Command {
+            vector<string>{},
+            false, false, true
+          });
+          return consume_tokens(cmds, tokens, tok_indx + 1);
+        }
+        if (token[0] == '>') {
+          cmds.back().out_redirect_to_process = false;
+          cmds.back().out_redirect_to_file = true;
+          cmds.push_back(Command {
+            vector<string>{},
+            false, false, true
+          });
+          return consume_tokens(cmds, tokens, tok_indx + 1);
+        }
+        cmds.back().cmd.push_back(token);
+        tok_indx += 1;
+      }
+    }
+
+    pair<bool, string> verify_tokens(vector<string>& tokens) {
+      // Invalid in following cases:
+      // - starting with non alphabetic chars for commands
+      // - subsequenct occurance of modifier tokens like '|', '>'
+      unordered_set<char> valid_starts = unordered_set<char> {'\'', '"', '.', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
+      bool modifier_expected_next = false;
+      for (int i = 0; i<tokens.size(); i++) {
+        auto tok = tokens[i];
+        unsigned char first_c = static_cast<unsigned char>(tok[0]);
+        if (!modifier_expected_next && !isalpha(first_c) && valid_starts.find(first_c) == valid_starts.end()) {
+          return {false, "illegal: " + tok};
+        }
+        if (modifier_expected_next && (tok.length() > 1  || (first_c != '|' && first_c != '>'))) {
+          return {false, "illegal: " + tok};
+        }
+        if (modifier_expected_next) {
+          modifier_expected_next = false;
+          continue;
+        }
+        if (i < tokens.size() - 1) {
+          auto next_token = tokens[i+1];
+          auto next_f_c = static_cast<unsigned char>(next_token[0]);
+          if (!isalpha(next_f_c) && valid_starts.find(next_f_c) == valid_starts.end()) {
+            modifier_expected_next = true;
           }
-          if (token[0] == '>') {
-            cmds.back().out_redirect_to_process = false;
-            cmds.back().out_redirect_to_file = true;
-            cmds.push_back(Command {
-              vector<string>{},
-              false, false
-            });
-            return consume_tokens(cmds, tokens, tok_indx + 1);
-          }
-          cmds.back().cmd.push_back(token);
-          tok_indx += 1;
         }
       }
+      return {true, ""};
+    }
 
-      pair<bool, string> verify_tokens(vector<string>& tokens) {
-        // Invalid in following cases:
-        // - starting with non alphabetic chars for commands
-        // - subsequenct occurance of modifier tokens like '|', '>'
-        unordered_set<char> valid_starts = unordered_set<char> {'\'', '"', '.'};
-        bool modifier_expected_next = false;
-        for (int i = 0; i<tokens.size(); i++) {
-          auto tok = tokens[i];
-          unsigned char first_c = static_cast<unsigned char>(tok[0]);
-          if (!modifier_expected_next && !isalpha(first_c) && valid_starts.find(first_c) == valid_starts.end()) {
-            return {false, "illegal: " + tok};
-          }
-          if (modifier_expected_next && (tok.length() > 1  || (first_c != '|' && first_c != '>'))) {
-            return {false, "illegal: " + tok};
-          }
-          if (modifier_expected_next) {
-            modifier_expected_next = false;
-            continue;
-          }
-          if (i < tokens.size() - 1) {
-            auto next_token = tokens[i+1];
-            auto next_f_c = static_cast<unsigned char>(next_token[0]);
-            if (!isalpha(next_f_c) && valid_starts.find(next_f_c) == valid_starts.end()) {
-              modifier_expected_next = true;
-            }
-          }
-        }
-        return {true, ""};
+    vector<string> tokenizer(string& s) {
+      vector<string> ans;
+      istringstream stream(s);
+      string buf;
+      while (stream >> buf) {
+        ans.push_back(buf);
       }
-
-      vector<string> tokenizer(string& s) {
-        vector<string> ans;
-        istringstream stream(s);
-        string buf;
-        while (stream >> buf) {
-          ans.push_back(buf);
-        }
-        return ans;
-      }
-  };
-}
+      return ans;
+    }
+};

@@ -1,121 +1,37 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
-#include <unordered_map>
-#include <functional>
-#include <vector>
+#include <optional>
 
 #include "parser.hpp"
-#include "myfilesystem.hpp"
-#include "process.hpp"
+#include "job.hpp"
+
 
 using namespace std;
 
-namespace job {
-  void display(parser::Job& job) {
-    if (job.in_bg) {
-      cout << "To be run in the background" << endl;
-    }
-    for (auto cmd: job.cmds) {
-      cout << "______________________________________" << endl;
-      for (auto c: cmd.cmd) {
-        cout << c << " ";
-      }
-      cout << endl;
-      cout << "Redirect output to file: " << cmd.out_redirect_to_file << endl;
-      cout << "Redirect output to process: " << cmd.out_redirect_to_process << endl;
-    }
-    cout << "______________________________________" << endl;
-  }
-
-  void run(parser::Job& job) {
-
-  }
-}
-
-
 class Shell {
 public:
-  Shell() {
-    init();
-  }
-
   void run() {
-    parser::Parser prsr;
     string prompt; 
     while (1) {
-      cout << "[" << cwd << "]$ ";
+      cout << "[" << job_mgnr.cwd << "]$ ";
       getline(cin, prompt);
-      auto parse_result = prsr.parse(prompt);
+      auto parse_result = parser.parse(prompt);
       if (parse_result.error_msg.has_value()) {
         cout << parse_result.error_msg.value() << endl;
         continue;
       }
-      if (parse_result.job.has_value()) {
-        job::display(parse_result.job.value());
+      if (!parse_result.job.has_value()) {
+        continue;
       }
-      // if (registry.find(command.front()) != registry.end()) {
-      //   registry[command.front()]();
-      //   continue;
-      // }
-      // auto exec_file = myfilesystem::locate_executable_file_in_path(command.front());
-      // if (exec_file.has_value()) {
-      //   if (command.back() == "&") {
-      //     command.pop_back();
-      //     process::spawn_in_bg(exec_file.value(), command);
-      //   } else {
-      //     process::spawn(exec_file.value(), command);
-      //   }
-      // } else {
-      //   cout << "unknown command: " << command.front() << endl;
-      // }
+      job_mgnr.display(parse_result.job.value());
+      job_mgnr.run(parse_result.job.value());
     }
   }
 
 private:
-  unordered_map<string, function<void ()>> registry;
-  string cwd;
-  vector<string> command;
-
-  void init() {
-    process::init();
-    myfilesystem::cd_to_home();
-    cwd = myfilesystem::get_cwd();
-    init_handlers();  
-  }
-
-  void init_handlers() {
-    registry["exit"] = [&]() {
-      exit(0);
-    };
-    registry["pwd"] = [&]() {
-      cout << myfilesystem::get_cwd() << endl;
-    };
-    registry["cd"] = [&]() {
-      auto a = command;
-      if (command.size() != 2) {
-        cerr << "Command error: Missing path to change directory" << endl;
-        return;
-      }
-      string path = command[1];
-      myfilesystem::cd(path);
-      cwd = myfilesystem::get_cwd();
-    };
-    registry["test"] = [&]() {
-      cout << "launching sleep" << endl;
-      vector<string> command { "sleep", "30"};
-      process::spawn("/bin/sleep", command);
-    };
-    registry["test2"] = [&]() {
-      cout << "launching sleep in bg" << endl;
-      vector<string> command { "sleep", "10"};
-      process::spawn_in_bg("/bin/sleep", command);
-    };
-    registry["fg"] = [&]() {
-      process::bring2fg();
-    };
-  }
-  
+  Parser parser;
+  JobManager job_mgnr;
 };
 
 

@@ -7,5 +7,5 @@
 - [X] `Ctrl + Z` and `&` to run in the background
 - [X] `fg` to bring to foreground
 - [X] Locate and run executable files from `PATH`
-- [ ] Pipe `|`
+- [X] Pipe `|`
 - [ ] IO redirection '>' (STDOUT only)
