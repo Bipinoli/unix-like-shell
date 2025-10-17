@@ -167,11 +167,18 @@ class JobManager {
           read_pipe_map[i+1] = pipes.size()-1;
         }
       }
-
       vector<pid_t> children;
       for (int i=0; i<cmds.size(); i++) {
         auto command = cmds[i];
         optional<string> exec_path = myfilesystem::locate_executable_file_in_path(command.cmd.front());
+        if (command.in_redirect && !exec_path.has_value() && i == cmds.size() - 1) {
+          // must be the output redirect to a file
+          auto read_pipe = pipes[read_pipe_map[i]];
+          close_file(read_pipe[1]);
+          write_pipe_data_to_file(read_pipe[0], command.cmd.front());
+          close_file(read_pipe[0]);
+          break;
+        }
         auto child_id = process_mgnr.spawn_with_pipe(
           exec_path.value(),
           command.cmd,
@@ -180,12 +187,16 @@ class JobManager {
         );
         children.push_back(child_id);
       }
+      bool pipeline_failed = false;
       for (auto pid: children) {
         int status;
         waitpid(pid, &status, 0);
-        // if (WIFEXITED(status)) {
-        //   cerr << "Process " << pid << " exited with status " << WEXITSTATUS(status) << endl;
-        // }
+        if (WEXITSTATUS(status) != 0) {
+          pipeline_failed = true; 
+        }
+      }
+      if (pipeline_failed) {
+        cerr << "pipeline failed!" << endl;
       }
     }
 
@@ -217,23 +228,9 @@ class JobManager {
         output_fs.write(buf, bytes_read);
       }
       if (bytes_read < 0) {
-        cerr << "CRASH! couldn't read data from the pipe" << endl;
+        cerr << "Couldn't read data from the pipe." << endl;
       }
       output_fs.close();
-    }
-
-
-
-    void write_pipe_data_to_stdout(int pipe_read_fd) {
-      const size_t BUF_SIZE = 1280; // 64 * 20
-      char buf[BUF_SIZE];
-      size_t bytes_read;
-      while ((bytes_read = read(pipe_read_fd, buf, BUF_SIZE)) > 0) { // man 2 read
-        cout.write(buf, bytes_read);
-      }
-      if (bytes_read < 0) {
-        cerr << "CRASH! couldn't read data from the pipe" << endl;
-      }
     }
 
 };

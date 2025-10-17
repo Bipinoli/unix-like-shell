@@ -44,7 +44,6 @@ class ProcessManager {
         execve_child_process(path, command);
         return child_pid; // unreachable. Here to supress compiler warning
       } else {
-        // sleep(1);
         if (read_pipe.has_value()) {
           close_file(read_pipe.value()[0]);
           close_file(read_pipe.value()[1]);
