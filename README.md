@@ -8,4 +8,4 @@
 - [X] `fg` to bring to foreground
 - [X] Locate and run executable files from `PATH`
 - [X] Pipe `|`
-- [ ] IO redirection '>' (STDOUT only)
+- [ ] IO redirection '>' (only STDOUT redirect to a file)

@@ -2,8 +2,12 @@
 #include <sys/wait.h>
 #include <csignal>
 #include <vector>
+#include <optional>
 
 using namespace std;
+
+
+extern char** environ;
 
 class ProcessManager {
   public:
@@ -17,47 +21,35 @@ class ProcessManager {
       signal(SIGTTIN, SIG_IGN);
     }
 
-    bool spawn_with_pipe(const string& path, const vector<string>& command, bool pipe_read, bool pipe_write, int read_pipe[2], int write_pipe[2]) {
+    pid_t spawn_with_pipe(const string& path, const vector<string>& command, const optional<array<int,2>>& read_pipe, const optional<array<int,2>>& write_pipe) {
       auto child_pid = fork();
       if (child_pid == -1) {
         cerr << "CRASH! fork() failed" << endl;
         exit(1);
       }
       if (child_pid == 0) {
-        close_file(read_pipe[1]);
-        close_file(write_pipe[0]);
-        if (pipe_read) {
-          dup2(read_pipe[0], STDIN_FILENO); // man 2 dup2
+        if (read_pipe.has_value()) {
+          close_file(read_pipe.value()[1]);
+          dup2_fd(read_pipe.value()[0], STDIN_FILENO);
+          close_file(read_pipe.value()[0]);
         }
-        if (pipe_write) {
-          dup2(write_pipe[1], STDOUT_FILENO);
+        if (write_pipe.has_value()) {
+          close_file(write_pipe.value()[0]);
+          dup2_fd(write_pipe.value()[1], STDOUT_FILENO);
+          close_file(write_pipe.value()[1]);
         }
-        close_file(read_pipe[0]);
-        close_file(write_pipe[1]);
         // Note: 
         // file descriptors are preserved during execve
         // duplicated file descriptors from dup2 are closed by OS when process terminates
         execve_child_process(path, command);
-        return true; // never reached. Just to make warning disappear
+        return child_pid; // unreachable. Here to supress compiler warning
       } else {
-        close_file(read_pipe[0]);
-        close_file(read_pipe[1]);
-        setpgid(child_pid, child_pid);
-        set_process_grp_to_fg(child_pid);
-        int status;
-        if (waitpid(child_pid, &status, 0) == -1) {
-          cerr << "CRASH! failed to wait for the completion of child process" << endl;
-          exit(1);
+        // sleep(1);
+        if (read_pipe.has_value()) {
+          close_file(read_pipe.value()[0]);
+          close_file(read_pipe.value()[1]);
         }
-        // immportant to bring parent to foreground to attach STDIN to terminal
-        set_process_grp_to_fg(getpgrp());
-        if (WIFEXITED(status)) {
-          int exit_status = WEXITSTATUS(status);
-          if (exit_status == 0) {
-            return true;
-          }
-        }
-        return false;
+        return child_pid;
       }
     }
 
@@ -176,17 +168,24 @@ class ProcessManager {
         argv.push_back(const_cast<char*>(c.c_str()));
       }
       argv.push_back(nullptr);
-      if (execve(path.c_str(), argv.data(), nullptr) == -1) {
-        cerr << "CRASH! failed to spawn the process" << endl;
+      if (execve(path.c_str(), argv.data(), environ) == -1) {
+        cerr << "CRASH! failed to spawn the process with errno " << errno  << endl;
         exit(1);
       }
     }
 
     void close_file(int fd) {
       if (close(fd) == -1) {
-        cerr << "CRASH! close() failed" << endl;
+        cerr << "CRASH! close() failed with errno " << errno << endl;
         exit(1);
       }
+    }
+
+    void dup2_fd(int target_fd, int new_val) {
+      if (dup2(target_fd, new_val) == -1) { // man 2 dup2
+        cerr << "CRASH! dup2() failed with errno " << errno << endl;
+        exit(1);
+      };
     }
 };
 

@@ -24,7 +24,7 @@ public:
       if (!parse_result.job.has_value()) {
         continue;
       }
-      job_mgnr.display(parse_result.job.value());
+      // job_mgnr.display(parse_result.job.value());
       job_mgnr.run(parse_result.job.value());
     }
   }

@@ -14,9 +14,9 @@ using namespace std;
 
 struct Command {
     vector<string> cmd;
-    bool out_redirect_to_file;
-    bool out_redirect_to_process;
-    bool in_redirect_from_process;
+    bool in_redirect;
+    bool out_redirect;
+    bool is_last_of_pipeline;
   };
 
 struct Job {
@@ -42,6 +42,7 @@ class Parser {
         tokens.pop_back();
         job_in_bg = true;
       } 
+      clean_tokens(tokens);
       auto [is_valid, err_msg] = verify_tokens(tokens);
       if (!is_valid) {
         return {nullopt, err_msg};
@@ -49,8 +50,10 @@ class Parser {
       Job job = {
         vector<Command> {
           Command {
-            vector<string> {},
-            false, false, false
+            .cmd = vector<string> {},
+            .in_redirect = false,
+            .out_redirect = false,
+            .is_last_of_pipeline = false
           }
         },
         job_in_bg
@@ -65,20 +68,22 @@ class Parser {
       while (tok_indx < tokens.size()) {
         const string token = tokens[tok_indx];
         if (token[0] == '|') {
-          cmds.back().out_redirect_to_process = true;
-          cmds.back().out_redirect_to_file = false;
+          cmds.back().out_redirect = true;
           cmds.push_back(Command {
-            vector<string>{},
-            false, false, true
+            .cmd = vector<string>{},
+            .in_redirect = true,
+            .out_redirect = false,
+            .is_last_of_pipeline = false
           });
           return consume_tokens(cmds, tokens, tok_indx + 1);
         }
         if (token[0] == '>') {
-          cmds.back().out_redirect_to_process = false;
-          cmds.back().out_redirect_to_file = true;
+          cmds.back().out_redirect = true;
           cmds.push_back(Command {
-            vector<string>{},
-            false, false, true
+            .cmd = vector<string>{},
+            .in_redirect = true,
+            .out_redirect = false,
+            .is_last_of_pipeline = true
           });
           return consume_tokens(cmds, tokens, tok_indx + 1);
         }
@@ -87,11 +92,19 @@ class Parser {
       }
     }
 
+    void clean_tokens(vector<string>& tokens) {
+      for (auto& token: tokens) {
+        if (token.length() > 1 && (token.front() == '"' || token.front() == '\'')) {
+          token = token.substr(1, token.length() - 2);
+        }
+      }
+    }
+
     pair<bool, string> verify_tokens(vector<string>& tokens) {
       // Invalid in following cases:
       // - starting with non alphabetic chars for commands
       // - subsequenct occurance of modifier tokens like '|', '>'
-      unordered_set<char> valid_starts = unordered_set<char> {'\'', '"', '.', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
+      unordered_set<char> valid_starts = unordered_set<char> {'.', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
       bool modifier_expected_next = false;
       for (int i = 0; i<tokens.size(); i++) {
         auto tok = tokens[i];
