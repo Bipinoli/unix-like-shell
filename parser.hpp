@@ -42,7 +42,6 @@ class Parser {
         tokens.pop_back();
         job_in_bg = true;
       } 
-      clean_tokens(tokens);
       auto [is_valid, err_msg] = verify_tokens(tokens);
       if (!is_valid) {
         return {nullopt, err_msg};
@@ -92,13 +91,6 @@ class Parser {
       }
     }
 
-    void clean_tokens(vector<string>& tokens) {
-      for (auto& token: tokens) {
-        if (token.length() > 1 && (token.front() == '"' || token.front() == '\'')) {
-          token = token.substr(1, token.length() - 2);
-        }
-      }
-    }
 
     pair<bool, string> verify_tokens(vector<string>& tokens) {
       // Invalid in following cases:
