@@ -130,13 +130,38 @@ class Parser {
       return {true, ""};
     }
 
-    vector<string> tokenizer(string& s) {
-      vector<string> ans;
-      istringstream stream(s);
-      string buf;
-      while (stream >> buf) {
-        ans.push_back(buf);
+    vector<string> tokenizer(string& input) {
+      vector<std::string> tokens;
+      string current;
+      bool in_quote = false;
+      char quote_char = 0;
+      for (auto i = 0; i < input.size(); ++i) {
+          char c = input[i];
+          if (in_quote) {
+              if (c == quote_char) {
+                  in_quote = false;
+                  tokens.push_back(current);
+                  current.clear();
+              } else {
+                  current += c;
+              }
+          } else {
+              if (std::isspace(c)) {
+                  if (!current.empty()) {
+                      tokens.push_back(current);
+                      current.clear();
+                  }
+              } else if (c == '\'' || c == '"') {
+                  in_quote = true;
+                  quote_char = c;
+              } else {
+                  current += c;
+              }
+          }
       }
-      return ans;
+      if (!current.empty()) {
+          tokens.push_back(current);
+      }
+      return tokens;
     }
 };
